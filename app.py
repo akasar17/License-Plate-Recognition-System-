@@ -2,79 +2,76 @@ import os
 import cv2
 import numpy as np
 from flask import Flask, request, jsonify, render_template
-from werkzeug.utils import secure_filename
 from ultralytics import YOLO
 import pytesseract
 from PIL import Image
 import re
+from flask_cors import CORS
 
-# Configuration
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+# Set tesseract path (modify based on your OS)
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Flask App Setup
+# Flask app
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+CORS(app)
 
-# Load YOLOv8 Model
-model = YOLO('yolov8n.pt')  # Or your custom-trained license plate model
+# Load YOLOv8 model
+model = YOLO("best.pt")  # Put your trained YOLOv8 model path here
 
-# Utility Function
+# License plate regex pattern (India)
+plate_pattern = r'^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$'
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Preprocess image for better OCR
+def preprocess_for_ocr(plate_img):
+    gray = cv2.cvtColor(plate_img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (3, 3), 0)
+    _, thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return thresh
 
-def detect_license_plate(image_path):
-    image = cv2.imread(image_path)
-    results = model(image)[0]
+# Extract text from license plate
+def extract_plate_text(cropped_img):
+    processed = preprocess_for_ocr(cropped_img)
+    pil_img = Image.fromarray(processed)
+    text = pytesseract.image_to_string(pil_img, config='--psm 8')
+    cleaned = re.sub(r'[^A-Z0-9]', '', text.upper())
+    return cleaned
 
-    for box in results.boxes:
-        x1, y1, x2, y2 = map(int, box.xyxy[0])
-        cropped = image[y1:y2, x1:x2]
-        temp_path = os.path.join(UPLOAD_FOLDER, 'temp.jpg')
-        cv2.imwrite(temp_path, cropped)
+# Validate plate format
+def is_valid_plate(plate_text):
+    return bool(re.match(plate_pattern, plate_text))
 
-        text = pytesseract.image_to_string(Image.open(temp_path))
-        plate_text = re.sub(r'[^A-Z0-9]', '', text.upper())
-
-        if validate_plate(plate_text):
-            return plate_text, True
-        else:
-            return plate_text, False
-
-    return "No plate detected", False
-
-def validate_plate(plate_text):
-    # Example: MH12AB1234, DL8CAF5030
-    pattern = r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$'
-    return bool(re.match(pattern, plate_text))
-
-# Routes
 @app.route('/')
-def index():
-    return render_template('index.html')
+def home():
+    return render_template("index.html")
 
-@app.route('/upload', methods=['POST'])
-def upload():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+@app.route('/detect', methods=['POST'])
+def detect_plate():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided."}), 400
 
-        plate, valid = detect_license_plate(filepath)
-        return jsonify({
-            'plate': plate,
-            'valid': valid
+    file = request.files['image']
+    img_path = os.path.join("uploads", file.filename)
+    file.save(img_path)
+
+    # Load image
+    img = cv2.imread(img_path)
+    results = model(img)
+
+    detection_data = []
+
+    for box in results[0].boxes.xyxy:
+        x1, y1, x2, y2 = map(int, box)
+        cropped = img[y1:y2, x1:x2]
+        plate_text = extract_plate_text(cropped)
+        valid = is_valid_plate(plate_text)
+        detection_data.append({
+            "plate": plate_text,
+            "valid": valid,
+            "coordinates": [x1, y1, x2, y2]
         })
-    else:
-        return jsonify({'error': 'File type not allowed'}), 400
+
+    return jsonify({"detections": detection_data})
 
 if __name__ == '__main__':
+    os.makedirs("uploads", exist_ok=True)
     app.run(debug=True)
