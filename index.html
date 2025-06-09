@@ -2,356 +2,622 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Indian License Plate Detection & Chatbot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Indian Vehicle License Plate Detection - AI System</title>
 <style>
-  /* Reset + base */
-  * {
-    box-sizing: border-box;
-  }
+  @import url('https://fonts.googleapis.com/css2?family=Segoe+UI&display=swap');
+  *{box-sizing:border-box;}
   body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    margin: 0; padding: 0;
-    background: #f0f2f5;
-    color: #222;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    align-items: center;
-    padding: 10px;
+    margin: 0; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background:#f9f9f9; color:#333; display:flex; flex-direction:column; min-height:100vh;
   }
-  h1 {
-    margin-bottom: 0.3em;
-    color: #1a73e8;
+  header {
+    background: linear-gradient(135deg, #ff9933, #138808);
+    color:white; padding:1rem 1.5rem; text-align:center; font-weight:700;
+    font-size:1.3rem; letter-spacing:1px; user-select:none;
   }
-
-  /* Container for detection & chat */
-  .container {
-    display: flex;
-    flex-direction: row;
-    gap: 20px;
-    width: 100%;
-    max-width: 1100px;
+  main {
+    flex:1; max-width:900px; margin:1rem auto; width:95%;
+    background:white; border-radius:12px; box-shadow:0 8px 24px rgb(0 0 0 / 0.12);
+    padding:1rem;
   }
-  @media (max-width: 900px) {
-    .container {
-      flex-direction: column;
-      align-items: center;
-    }
+  .mode-selector {
+    display:flex; justify-content:center; gap:1rem; margin-bottom:1rem;
   }
-
-  /* Left panel: detection */
-  .detection-panel {
-    flex: 2;
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px rgb(26 115 232 / 0.15);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  .mode-btn {
+    background:#eee; border:none; padding:0.6rem 1.5rem; font-size:1rem;
+    font-weight:600; border-radius:30px; cursor:pointer; transition:background-color 0.3s ease;
+    user-select:none;
   }
-
+  .mode-btn.active {
+    background:#ff9933; color:white; box-shadow:0 4px 12px rgb(255 153 51 / 0.6);
+  }
+  .mode-btn:hover:not(.active) {
+    background:#f4a951; color:white;
+  }
+  #videoContainer {
+    position:relative; max-width:100%; border-radius:12px; overflow:hidden; background:#000;
+    aspect-ratio:16 / 9;
+  }
   video, canvas {
-    border-radius: 8px;
-    max-width: 100%;
-    height: auto;
-    box-shadow: 0 0 15px rgba(26,115,232,0.3);
+    width:100%; height:auto; display:block;
   }
-
-  #video {
-    width: 100%;
-    max-height: 320px;
-    background: #000;
+  canvas {
+    position:absolute; top:0; left:0; pointer-events:none;
   }
-
-  #uploadInput {
-    margin: 15px 0;
+  #uploadArea {
+    border:3px dashed #ff9933; border-radius:12px; padding:2rem;
+    text-align:center; color:#666; cursor:pointer; transition:background-color 0.3s ease;
+    user-select:none; display:none;
   }
-
+  #uploadArea:hover {
+    background:#fff3e0; border-color:#ffb84d;
+  }
+  #uploadArea input[type="file"] {
+    display:none;
+  }
+  #imageUpload {
+    max-width:100%; max-height:400px; margin:1rem auto;
+    border-radius:12px; box-shadow:0 4px 16px rgb(0 0 0 / 0.1); display:none;
+  }
+  #processingIndicator {
+    display:none; justify-content:center; margin:1rem 0;
+  }
+  #processingIndicator div {
+    width:24px; height:24px; margin:0 4px; background:#ff9933; border-radius:50%;
+    animation:bounce 0.6s infinite alternate;
+  }
+  #processingIndicator div:nth-child(2) {
+    animation-delay:0.2s;
+  }
+  #processingIndicator div:nth-child(3) {
+    animation-delay:0.4s;
+  }
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-12px); }
+  }
+  #detectionOverlay {
+    margin-top:0.5rem; font-weight:600; text-align:center; color:#138808;
+  }
+  #detectionList {
+    margin-top:1rem; max-height:200px; overflow-y:auto;
+    border-top:1px solid #ddd; padding-top:1rem;
+  }
+  .detection-item {
+    background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), rgba(19, 136, 8, 0.05));
+    border-radius:12px; padding:18px; margin-bottom:12px;
+    border-left:4px solid #ff9933; transition:all 0.3s ease;
+    border:1px solid rgba(255, 153, 51, 0.4); user-select:none;
+  }
+  .detection-item strong {
+    color:#ff9933;
+  }
+  #statsBar {
+    margin-top:1rem; display:flex; justify-content:space-around; gap:1rem;
+    font-weight:600; color:#555;
+  }
+  .stat-card {
+    flex:1; background:#f5f5f5; border-radius:12px; padding:0.7rem 1rem;
+    text-align:center; user-select:none; box-shadow: inset 0 0 4px rgb(255 153 51 / 0.2);
+  }
+  .stat-value {
+    font-size:1.3rem; color:#ff9933;
+  }
+  .stat-label {
+    font-size:0.8rem; margin-top:2px; color:#138808;
+  }
+  #controlButtons {
+    margin-top:1rem; text-align:center; user-select:none;
+  }
   button {
-    background-color: #1a73e8;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    padding: 12px 18px;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background-color 0.3s ease;
-    user-select: none;
+    background:#ff9933; border:none; padding:0.7rem 1.5rem; border-radius:30px;
+    font-weight:700; font-size:1rem; color:white; cursor:pointer; margin:0 0.5rem;
+    transition:background-color 0.3s ease; user-select:none;
   }
-  button:hover {
-    background-color: #155ab6;
+  button:disabled {
+    background:#ffcc99; cursor:not-allowed;
   }
-
-  /* Results */
-  #result {
-    margin-top: 12px;
-    font-weight: 600;
-    font-size: 1.2rem;
-    color: #333;
-    min-height: 1.3em;
+  button:hover:not(:disabled) {
+    background:#ffb84d;
   }
-  #details {
-    margin-top: 8px;
-    font-size: 1rem;
-    color: #555;
-    text-align: left;
-    max-width: 100%;
-    white-space: pre-wrap;
+  /* Chatbot */
+  .chatbot-container {
+    position: fixed; bottom: 20px; right: 20px; z-index: 1000; font-family: 'Segoe UI', sans-serif;
   }
-
-  /* Right panel: chatbot */
-  .chat-panel {
-    flex: 1;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px rgb(26 115 232 / 0.15);
-    display: flex;
-    flex-direction: column;
-    max-height: 520px;
-    min-width: 300px;
+  .chatbot-toggle {
+    background: #ff9933; border: none; border-radius: 50%; width: 56px; height: 56px;
+    color: white; font-size: 28px; cursor: pointer;
+    box-shadow: 0 4px 12px rgb(255 153 51 / 0.5); user-select:none;
   }
-
-  .chat-header {
-    background-color: #1a73e8;
-    color: white;
-    font-weight: 700;
-    padding: 15px;
-    border-top-left-radius: 10px;
-    border-top-right-radius: 10px;
-    font-size: 1.1rem;
-    user-select: none;
+  .chatbot-window {
+    display: none; flex-direction: column; width: 320px; height: 440px;
+    background: white; border-radius: 16px; box-shadow: 0 8px 32px rgb(0 0 0 / 0.3);
+    overflow: hidden;
   }
-
-  #chatbox {
-    flex-grow: 1;
-    overflow-y: auto;
-    padding: 15px;
-    font-size: 0.95rem;
-    background: #f9f9f9;
+  .chatbot-header {
+    background: #ff9933; color: white; padding: 1rem; font-weight: 700;
+    font-size: 1.2rem; display: flex; justify-content: space-between; align-items: center;
+    user-select:none;
   }
-  .chat-msg {
-    margin-bottom: 10px;
-    max-width: 90%;
-    line-height: 1.3;
-    padding: 10px 14px;
-    border-radius: 15px;
-    word-wrap: break-word;
+  .chatbot-close {
+    background: transparent; border: none; font-size: 1.6rem; color: white;
+    cursor: pointer; font-weight: 700; user-select:none;
   }
-  .user-msg {
-    background-color: #1a73e8;
-    color: white;
-    margin-left: auto;
-    border-bottom-right-radius: 2px;
+  .chatbot-messages {
+    flex: 1; overflow-y: auto; padding: 0.8rem; background: #fff7e6; font-size: 0.9rem;
   }
-  .bot-msg {
-    background-color: #e4e6eb;
-    color: #222;
-    margin-right: auto;
-    border-bottom-left-radius: 2px;
+  .message {
+    margin-bottom: 0.8rem; display: flex; flex-direction: column;
   }
-
-  .chat-input-area {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid #ddd;
+  .message.user {
+    align-items: flex-end;
   }
-  #chat-input {
-    flex-grow: 1;
-    border: 1px solid #ccc;
-    border-radius: 25px;
-    padding: 10px 15px;
-    font-size: 1rem;
-    outline-offset: 2px;
-    outline-color: #1a73e8;
+  .message.bot {
+    align-items: flex-start;
   }
-  #send-btn {
-    background-color: #1a73e8;
-    border: none;
-    color: white;
-    margin-left: 10px;
-    border-radius: 25px;
-    padding: 0 18px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    user-select: none;
+  .message-content {
+    max-width: 80%; padding: 0.6rem 1rem; border-radius: 18px; line-height: 1.3;
+    user-select: text;
   }
-  #send-btn:hover {
-    background-color: #155ab6;
+  .message.user .message-content {
+    background: #ff9933; color: white; border-bottom-right-radius: 4px;
+  }
+  .message.bot .message-content {
+    background: #138808; color: white; border-bottom-left-radius: 4px;
+  }
+  .chatbot-input {
+    display: flex; padding: 0.6rem; border-top: 1px solid #ddd; background: #fff3e0;
+  }
+  #chatbotInput {
+    flex: 1; padding: 0.5rem 1rem; font-size: 1rem; border: 1px solid #ff9933;
+    border-radius: 30px; outline: none; user-select:text;
+  }
+  #chatbotSend {
+    background: #138808; border: none; color: white; font-weight: 700;
+    margin-left: 0.5rem; padding: 0 1.2rem; border-radius: 30px; cursor: pointer;
+    user-select:none;
+  }
+  #chatbotSend:hover {
+    background: #0f6b06;
+  }
+  /* Responsive */
+  @media (max-width: 600px) {
+    main {
+      width: 100%; margin: 0; border-radius: 0; box-shadow: none; padding: 1rem 0.5rem;
+    }
+    .chatbot-window {
+      width: 100vw; height: 50vh; bottom: 0 !important; right: 0 !important;
+      border-radius: 0;
+    }
   }
 </style>
 </head>
 <body>
-
-<h1>Indian License Plate Detection & Chatbot</h1>
-
-<div class="container">
-  <div class="detection-panel">
-    <video id="video" autoplay muted playsinline></video>
-    <canvas id="canvas" style="display:none;"></canvas>
-
-    <input type="file" id="uploadInput" accept="image/*" />
-    <button id="uploadBtn">Detect Uploaded Image</button>
-
-    <div id="result"></div>
-    <div id="details"></div>
+<header>Indian Vehicle License Plate Detection - AI System</header>
+<main>
+  <div class="mode-selector" role="tablist" aria-label="Mode selection">
+    <button id="cameraMode" class="mode-btn active" role="tab" aria-selected="true">Live Camera</button>
+    <button id="uploadMode" class="mode-btn" role="tab" aria-selected="false">Upload Image</button>
   </div>
 
-  <div class="chat-panel">
-    <div class="chat-header">Chatbot</div>
-    <div id="chatbox"></div>
-    <div class="chat-input-area">
-      <input type="text" id="chat-input" placeholder="Ask me about Indian license plates..." autocomplete="off" />
-      <button id="send-btn">Send</button>
+  <h2 id="modeTitle" style="text-align:center; color:#ff9933; font-weight:700;">🎥 Live Camera Feed</h2>
+
+  <div id="videoContainer">
+    <video id="videoFeed" autoplay muted playsinline></video>
+    <canvas id="canvasOverlay"></canvas>
+  </div>
+
+  <div id="uploadArea" role="button" tabindex="0" aria-label="Upload image area">
+    <p>Click or drag & drop to upload an image</p>
+    <input type="file" id="fileInput" accept="image/*" />
+  </div>
+  <img id="imageUpload" alt="Uploaded image preview" />
+
+  <div id="processingIndicator" aria-live="polite" aria-busy="true">
+    <div></div><div></div><div></div>
+  </div>
+
+  <div id="detectionOverlay" aria-live="polite" role="status">Model Loaded - Ready for Detection</div>
+
+  <div id="detectionList" aria-live="polite" aria-relevant="additions"></div>
+
+  <div id="statsBar" role="region" aria-label="Detection statistics">
+    <div class="stat-card" title="Total detections">
+      <div class="stat-value" id="totalDetections">0</div>
+      <div class="stat-label">Detections</div>
+    </div>
+    <div class="stat-card" title="Average confidence">
+      <div class="stat-value" id="avgConfidence">0%</div>
+      <div class="stat-label">Avg Confidence</div>
+    </div>
+    <div class="stat-card" title="System uptime">
+      <div class="stat-value" id="uptime">0s</div>
+      <div class="stat-label">Uptime</div>
+    </div>
+  </div>
+
+  <div id="controlButtons">
+    <button id="startBtn" aria-label="Start detection">Start</button>
+    <button id="stopBtn" aria-label="Stop detection" disabled>Stop</button>
+  </div>
+</main>
+
+<div class="chatbot-container" aria-label="Chatbot assistant">
+  <button class="chatbot-toggle" id="chatbotToggle" aria-label="Open AI assistant">💬</button>
+  <div class="chatbot-window" id="chatbotWindow" role="dialog" aria-modal="true" aria-labelledby="chatbotTitle">
+    <div class="chatbot-header">
+      <span id="chatbotTitle" class="chatbot-title">AI Assistant</span>
+      <button class="chatbot-close" id="chatbotClose" aria-label="Close chatbot">×</button>
+    </div>
+    <div class="chatbot-messages" id="chatbotMessages" tabindex="0"></div>
+    <div class="chatbot-input">
+      <input type="text" id="chatbotInput" placeholder="Ask me about license plates..." autocomplete="off" aria-label="Chat input" />
+      <button class="chatbot-send" id="chatbotSend" aria-label="Send message">Send</button>
     </div>
   </div>
 </div>
 
 <script>
-  // Backend API URL - adjust to your backend host/port if needed
-  const DETECT_API = 'http://127.0.0.1:5000/detect';
-  const CHAT_API = 'http://127.0.0.1:5000/chat';
-
-  // Elements
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
+  // DOM elements
+  const video = document.getElementById('videoFeed');
+  const canvas = document.getElementById('canvasOverlay');
   const ctx = canvas.getContext('2d');
+  const fileInput = document.getElementById('fileInput');
+  const uploadArea = document.getElementById('uploadArea');
+  const imageUpload = document.getElementById('imageUpload');
+  const detectionOverlay = document.getElementById('detectionOverlay');
+  const processingIndicator = document.getElementById('processingIndicator');
+  const detectionList = document.getElementById('detectionList');
+  const totalDetectionsEl = document.getElementById('totalDetections');
+  const avgConfidenceEl = document.getElementById('avgConfidence');
+  const uptimeEl = document.getElementById('uptime');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
 
-  const uploadInput = document.getElementById('uploadInput');
-  const uploadBtn = document.getElementById('uploadBtn');
+  const modeBtns = {
+    camera: document.getElementById('cameraMode'),
+    upload: document.getElementById('uploadMode'),
+  };
+  const modeTitle = document.getElementById('modeTitle');
 
-  const resultDiv = document.getElementById('result');
-  const detailsDiv = document.getElementById('details');
+  // Chatbot elements
+  const chatbotToggle = document.getElementById('chatbotToggle');
+  const chatbotWindow = document.getElementById('chatbotWindow');
+  const chatbotClose = document.getElementById('chatbotClose');
+  const chatbotMessages = document.getElementById('chatbotMessages');
+  const chatbotInput = document.getElementById('chatbotInput');
+  const chatbotSend = document.getElementById('chatbotSend');
 
-  const chatbox = document.getElementById('chatbox');
-  const chatInput = document.getElementById('chat-input');
-  const sendBtn = document.getElementById('send-btn');
+  // State
+  let currentMode = 'camera';
+  let videoStream = null;
+  let detectionRequestId = null;
+  let isDetecting = false;
+  let startTime = null;
+  let totalDetections = 0;
+  let totalConfidence = 0;
 
-  // Start webcam stream
-  async function startVideo() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio: false});
-      video.srcObject = stream;
-    } catch (err) {
-      alert('Error accessing webcam: ' + err.message);
+  // Helper: sleep
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Switch mode UI and reset
+  function switchMode(mode) {
+    if (currentMode === mode) return;
+    currentMode = mode;
+    for (let m in modeBtns) {
+      modeBtns[m].classList.toggle('active', m === mode);
+      modeBtns[m].setAttribute('aria-selected', m === mode ? 'true' : 'false');
+    }
+    stopDetection();
+    detectionList.innerHTML = '';
+    totalDetections = 0; totalConfidence = 0;
+    updateStats();
+
+    if (mode === 'camera') {
+      modeTitle.textContent = '🎥 Live Camera Feed';
+      video.style.display = 'block';
+      canvas.style.display = 'block';
+      uploadArea.style.display = 'none';
+      imageUpload.style.display = 'none';
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      detectionOverlay.textContent = 'Model Loaded - Ready for Detection';
+    } else if (mode === 'upload') {
+      modeTitle.textContent = '📁 Upload Image';
+      video.style.display = 'none';
+      canvas.style.display = 'none';
+      uploadArea.style.display = 'flex';
+      imageUpload.style.display = 'none';
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      detectionOverlay.textContent = 'Upload an image to detect license plate.';
     }
   }
 
-  // Send image blob to backend
-  async function sendImageToAPI(blob) {
-    const formData = new FormData();
-    formData.append('image', blob, 'frame.jpg');
-    resultDiv.textContent = 'Detecting...';
-    detailsDiv.textContent = '';
+  // Update stats panel
+  function updateStats() {
+    totalDetectionsEl.textContent = totalDetections;
+    const avg = totalDetections ? (totalConfidence / totalDetections * 100).toFixed(1) : '0';
+    avgConfidenceEl.textContent = avg + '%';
 
-    try {
-      const resp = await fetch(DETECT_API, {
-        method: 'POST',
-        body: formData
+    if (startTime) {
+      const diff = Math.floor((Date.now() - startTime) / 1000);
+      uptimeEl.textContent = diff + 's';
+    } else {
+      uptimeEl.textContent = '0s';
+    }
+  }
+
+  // Dummy detection function (replace with your model call or API)
+  function dummyDetect(imageData) {
+    // Simulate detection of 1-2 plates randomly
+    const results = [];
+    const n = Math.floor(Math.random() * 2) + 1;
+    for (let i=0; i<n; i++) {
+      // Random bounding box on image
+      const x = Math.random() * 0.7 + 0.15;
+      const y = Math.random() * 0.7 + 0.15;
+      const w = Math.random() * 0.3 + 0.15;
+      const h = Math.random() * 0.15 + 0.1;
+      const conf = Math.random() * 0.3 + 0.7;
+      const plateNum = "MH" + Math.floor(1000 + Math.random() * 9000) + "AB";
+      const valid = (Math.random() > 0.3);
+      results.push({
+        box: [x, y, w, h], conf, plateNum, valid
       });
-      const data = await resp.json();
+    }
+    return results;
+  }
 
-      if (data.plate) {
-        resultDiv.textContent = `Detected Plate: ${data.plate} (${data.valid ? 'Valid' : 'Invalid'})`;
-        if (data.details && typeof data.details === 'object') {
-          let detailsHTML = 'Vehicle Details:\n';
-          for (const [k, v] of Object.entries(data.details)) {
-            detailsHTML += `${k}: ${v}\n`;
-          }
-          detailsDiv.textContent = detailsHTML;
-        } else {
-          detailsDiv.textContent = data.details || '';
-        }
-      } else {
-        resultDiv.textContent = 'No license plate detected.';
+  // Draw detections on canvas
+  function drawDetections(detections, width, height) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 3;
+    ctx.font = "16px Segoe UI";
+    ctx.textBaseline = "top";
+
+    detections.forEach(det => {
+      const [x, y, w, h] = det.box;
+      const left = x * width;
+      const top = y * height;
+      const boxW = w * width;
+      const boxH = h * height;
+
+      ctx.strokeStyle = det.valid ? "#138808" : "#cc0000";
+      ctx.fillStyle = det.valid ? "rgba(19, 136, 8, 0.15)" : "rgba(204, 0, 0, 0.15)";
+      ctx.fillRect(left, top, boxW, boxH);
+      ctx.strokeRect(left, top, boxW, boxH);
+
+      ctx.fillStyle = det.valid ? "#138808" : "#cc0000";
+      const label = `${det.plateNum} (${(det.conf * 100).toFixed(1)}%) ${det.valid ? '✅ Valid' : '❌ Invalid'}`;
+      ctx.fillText(label, left + 6, top + 4);
+    });
+  }
+
+  // Process one video frame
+  async function processVideoFrame() {
+    if (!isDetecting) return;
+
+    if (video.readyState >= 2) {
+      // Resize canvas to video size
+      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
       }
-    } catch (err) {
-      resultDiv.textContent = 'Detection error.';
-      console.error(err);
+
+      // Grab frame from video
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Dummy detection - replace with actual ML model call
+      const detections = dummyDetect(frame);
+
+      // Update detection stats
+      totalDetections += detections.length;
+      totalConfidence += detections.reduce((sum, d) => sum + d.conf, 0);
+      updateStats();
+
+      // Draw boxes
+      drawDetections(detections, canvas.width, canvas.height);
+
+      // Update detection list text
+      detectionList.innerHTML = '';
+      detections.forEach((det, i) => {
+        const item = document.createElement('div');
+        item.className = 'detection-item';
+        item.innerHTML = `<strong>Plate:</strong> ${det.plateNum} <br>
+                          <strong>Confidence:</strong> ${(det.conf * 100).toFixed(1)}% <br>
+                          <strong>Status:</strong> ${det.valid ? 'Valid ✅' : 'Invalid ❌'}`;
+        detectionList.appendChild(item);
+      });
+
+      detectionOverlay.textContent = `Detected ${detections.length} plate(s) in current frame`;
+    }
+
+    detectionRequestId = requestAnimationFrame(processVideoFrame);
+  }
+
+  // Start detection on camera mode
+  async function startDetection() {
+    if (currentMode !== 'camera') return;
+    if (isDetecting) return;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    detectionOverlay.textContent = 'Starting camera...';
+
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio:false});
+      video.srcObject = videoStream;
+      await video.play();
+      startTime = Date.now();
+      totalDetections = 0; totalConfidence = 0;
+      isDetecting = true;
+      updateStats();
+      detectionOverlay.textContent = 'Detecting license plates...';
+      detectionRequestId = requestAnimationFrame(processVideoFrame);
+    } catch(err) {
+      detectionOverlay.textContent = 'Error accessing camera: ' + err.message;
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
     }
   }
 
-  // Real-time detection interval
-  let detecting = false;
-  async function detectFrame() {
-    if (detecting) return;
-    detecting = true;
-
-    // Draw current video frame on canvas
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Convert canvas to blob and send to API
-    canvas.toBlob(async (blob) => {
-      if(blob) {
-        await sendImageToAPI(blob);
-      }
-      detecting = false;
-    }, 'image/jpeg', 0.7);
+  // Stop detection
+  function stopDetection() {
+    isDetecting = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    detectionOverlay.textContent = 'Detection stopped.';
+    if (detectionRequestId) cancelAnimationFrame(detectionRequestId);
+    if (videoStream) {
+      videoStream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+      videoStream = null;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  // Call detectFrame every 3 seconds (adjust if needed)
-  setInterval(() => {
-    if (video.readyState === 4) {
-      detectFrame();
-    }
-  }, 3000);
+  // Handle file upload detection
+  function detectUploadImage(file) {
+    if (!file) return;
+    detectionOverlay.textContent = 'Processing image...';
+    processingIndicator.style.display = 'flex';
 
-  // Upload image detection
-  uploadBtn.addEventListener('click', async () => {
-    const file = uploadInput.files[0];
-    if (!file) {
-      alert('Please select an image to upload!');
-      return;
-    }
-    await sendImageToAPI(file);
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      imageUpload.src = event.target.result;
+      imageUpload.style.display = 'block';
+      uploadArea.style.display = 'none';
+
+      // After image loads, run detection
+      imageUpload.onload = () => {
+        // Resize canvas to image size for overlay
+        canvas.width = imageUpload.naturalWidth;
+        canvas.height = imageUpload.naturalHeight;
+        canvas.style.position = 'relative';
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+        canvas.style.display = 'block';
+
+        // Dummy detection (replace with model)
+        const detections = dummyDetect(null);
+
+        // Draw detections on canvas
+        drawDetections(detections, canvas.width, canvas.height);
+
+        // Show detection info
+        detectionList.innerHTML = '';
+        detections.forEach((det) => {
+          const item = document.createElement('div');
+          item.className = 'detection-item';
+          item.innerHTML = `<strong>Plate:</strong> ${det.plateNum} <br>
+                            <strong>Confidence:</strong> ${(det.conf * 100).toFixed(1)}% <br>
+                            <strong>Status:</strong> ${det.valid ? 'Valid ✅' : 'Invalid ❌'}`;
+          detectionList.appendChild(item);
+        });
+        totalDetections = detections.length;
+        totalConfidence = detections.reduce((sum, d) => sum + d.conf, 0);
+        updateStats();
+
+        detectionOverlay.textContent = `Detected ${detections.length} plate(s) in uploaded image`;
+        processingIndicator.style.display = 'none';
+      };
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // Drag & drop upload
+  uploadArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadArea.style.background = '#fff3e0';
   });
-
-  // Chatbot functionality
-  function appendChatMessage(message, sender) {
-    const div = document.createElement('div');
-    div.classList.add('chat-msg');
-    div.classList.add(sender === 'user' ? 'user-msg' : 'bot-msg');
-    div.textContent = message;
-    chatbox.appendChild(div);
-    chatbox.scrollTop = chatbox.scrollHeight;
-  }
-
-  async function sendChat() {
-    const msg = chatInput.value.trim();
-    if (!msg) return;
-
-    appendChatMessage(msg, 'user');
-    chatInput.value = '';
-
-    try {
-      const resp = await fetch(CHAT_API, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({message: msg})
-      });
-      const data = await resp.json();
-      appendChatMessage(data.reply, 'bot');
-    } catch (err) {
-      appendChatMessage('Sorry, failed to get response.', 'bot');
-      console.error(err);
+  uploadArea.addEventListener('dragleave', e => {
+    e.preventDefault();
+    uploadArea.style.background = '';
+  });
+  uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadArea.style.background = '';
+    if (e.dataTransfer.files.length) {
+      detectUploadImage(e.dataTransfer.files[0]);
     }
-  }
-
-  sendBtn.addEventListener('click', sendChat);
-  chatInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
+  });
+  uploadArea.addEventListener('click', () => fileInput.click());
+  uploadArea.addEventListener('keypress', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      sendChat();
+      fileInput.click();
     }
   });
 
-  // Start video on page load
-  window.onload = startVideo;
-</script>
+  fileInput.addEventListener('change', e => {
+    if (e.target.files.length) {
+      detectUploadImage(e.target.files[0]);
+    }
+  });
 
+  // Mode buttons
+  modeBtns.camera.addEventListener('click', () => switchMode('camera'));
+  modeBtns.upload.addEventListener('click', () => switchMode('upload'));
+
+  // Control buttons
+  startBtn.addEventListener('click', startDetection);
+  stopBtn.addEventListener('click', stopDetection);
+
+  // Initial mode setup
+  switchMode('camera');
+
+  // Chatbot logic (simple demo)
+  function addMessage(text, sender='bot') {
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message', sender);
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.textContent = text;
+    msgDiv.appendChild(content);
+    chatbotMessages.appendChild(msgDiv);
+    chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+  }
+
+  function processUserInput(input) {
+    const lower = input.toLowerCase();
+    if (lower.includes('valid') || lower.includes('invalid')) {
+      addMessage("License plates in India follow the format: Two letters for state code, two digits for district, and four digits unique to the vehicle. If the plate matches this pattern, it is considered valid.");
+    } else if (lower.includes('how') && lower.includes('detect')) {
+      addMessage("We use AI and OCR techniques to detect license plates from images or live camera feed.");
+    } else if (lower.includes('help')) {
+      addMessage("You can upload an image or use your camera to detect license plates. Ask me anything about Indian plates!");
+    } else {
+      addMessage("Sorry, I didn't get that. Try asking about Indian license plates or detection methods.");
+    }
+  }
+
+  chatbotToggle.addEventListener('click', () => {
+    chatbotWindow.style.display = 'flex';
+    chatbotToggle.style.display = 'none';
+    chatbotInput.focus();
+  });
+
+  chatbotClose.addEventListener('click', () => {
+    chatbotWindow.style.display = 'none';
+    chatbotToggle.style.display = 'inline-block';
+  });
+
+  chatbotSend.addEventListener('click', () => {
+    const text = chatbotInput.value.trim();
+    if (!text) return;
+    addMessage(text, 'user');
+    chatbotInput.value = '';
+    setTimeout(() => processUserInput(text), 500);
+  });
+
+  chatbotInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      chatbotSend.click();
+    }
+  });
+
+</script>
 </body>
 </html>
