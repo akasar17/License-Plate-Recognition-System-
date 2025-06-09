@@ -1,66 +1,77 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import easyocr
-from PIL import Image
+# app.py
+import os
 import io
-import re
+import time
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+from PIL import Image
+import numpy as np
+import torch
+import easyocr
+from ultralytics import YOLO
 
-app = Flask(__name__)
-CORS(app)
+app = Flask(__name__, static_folder='.', static_url_path='')
+CORS(app)  # Allow frontend to call API
 
-reader = easyocr.Reader(['en'])  # EasyOCR reader
+# Load YOLOv8 model
+yolo_model = YOLO('best.pt')  # Replace with your custom-trained model
+# Load EasyOCR reader
+reader = easyocr.Reader(['en'])
 
-# Simple mock vehicle details database
-VEHICLE_DB = {
-    'MH12AB1234': {'Make': 'Maruti Suzuki', 'Model': 'Swift', 'Year': '2018', 'Color': 'Red'},
-    'DL8CAF5032': {'Make': 'Honda', 'Model': 'City', 'Year': '2017', 'Color': 'Black'},
-    # Add more sample plates and details here
-}
+UPLOAD_FOLDER = 'uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def validate_indian_plate(plate):
-    # Simple regex for Indian plates: e.g. MH12AB1234
-    pattern = r'^[A-Z]{2}[0-9]{1,2}[A-Z]{1,2}[0-9]{4}$'
-    return re.match(pattern, plate) is not None
+def detect_license_plate(img_bytes):
+    results = yolo_model(img_bytes)[0]  # Run YOLOv8 detection
+    plates = []
 
-@app.route('/detect', methods=['POST'])
-def detect_plate():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image uploaded'}), 400
+    for det in results.boxes:
+        x1, y1, x2, y2 = map(int, det.xyxy[0].tolist())
+        conf = float(det.conf[0])
+        cropped = img.crop((x1, y1, x2, y2))
+        text_result = reader.readtext(np.array(cropped), detail=0)
+        plate_text = text_result[0] if text_result else ""
+        valid = bool(len(plate_text) >= 6)
+        plates.append({
+            'plate': plate_text,
+            'confidence': round(conf * 100, 1),
+            'valid': valid,
+            'box': [x1, y1, x2, y2]
+        })
+    return plates
 
-    file = request.files['image']
-    img_bytes = file.read()
-    image = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+@app.route('/api/detect', methods=['POST'])
+def detect():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+    file = request.files['file']
+    img = Image.open(file.stream).convert('RGB')
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='JPEG')
+    img_bytes = img_bytes.getvalue()
 
-    # OCR detection
-    results = reader.readtext(img_bytes)
+    try:
+        plates = detect_license_plate(img_bytes)
+        return jsonify({'success': True, 'plates': plates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-    plate_text = None
-    for (_, text, prob) in results:
-        clean_text = re.sub(r'[^A-Za-z0-9]', '', text.upper())
-        if validate_indian_plate(clean_text):
-            plate_text = clean_text
-            break
-
-    if plate_text:
-        valid = True
-        details = VEHICLE_DB.get(plate_text, {'Info': 'Details not found in database'})
-        return jsonify({'plate': plate_text, 'valid': valid, 'details': details})
-
-    return jsonify({'plate': None, 'valid': False, 'details': 'No valid license plate detected'})
-
-@app.route('/chat', methods=['POST'])
-def chat():
+@app.route('/api/chatbot', methods=['POST'])
+def chatbot():
     data = request.get_json()
-    message = data.get('message', '').lower()
-    # Basic canned responses
-    if 'valid' in message:
-        reply = "A valid Indian license plate format is like MH12AB1234."
-    elif 'help' in message:
-        reply = "You can ask me to detect license plates or check vehicle details."
-    else:
-        reply = "I'm here to help with Indian license plate detection and vehicle info."
+    msg = data.get('message', '').lower()
 
-    return jsonify({'reply': reply})
+    if 'validate' in msg:
+        return jsonify({'reply': 'Indian plates follow pattern: STATE‑RTO‑XXXX format.'})
+    elif 'help' in msg:
+        return jsonify({'reply': 'Send images or camera frames to detect license plates.'})
+    else:
+        return jsonify({'reply': "I'm here to help—ask me about license plate detection!"})
+
+@app.route('/', defaults={'path': 'index.html'})
+@app.route('/<path:path>')
+def serve(path):
+    return send_from_directory('.', path)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
