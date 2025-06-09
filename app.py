@@ -1,77 +1,80 @@
-# app.py
 import os
-import io
-import time
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-from PIL import Image
+import cv2
 import numpy as np
-import torch
-import easyocr
+from flask import Flask, request, jsonify, render_template
+from werkzeug.utils import secure_filename
 from ultralytics import YOLO
+import pytesseract
+from PIL import Image
+import re
 
-app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)  # Allow frontend to call API
-
-# Load YOLOv8 model
-yolo_model = YOLO('best.pt')  # Replace with your custom-trained model
-# Load EasyOCR reader
-reader = easyocr.Reader(['en'])
-
+# Configuration
 UPLOAD_FOLDER = 'uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+# Flask App Setup
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def detect_license_plate(img_bytes):
-    results = yolo_model(img_bytes)[0]  # Run YOLOv8 detection
-    plates = []
+# Load YOLOv8 Model
+model = YOLO('yolov8n.pt')  # Or your custom-trained license plate model
 
-    for det in results.boxes:
-        x1, y1, x2, y2 = map(int, det.xyxy[0].tolist())
-        conf = float(det.conf[0])
-        cropped = img.crop((x1, y1, x2, y2))
-        text_result = reader.readtext(np.array(cropped), detail=0)
-        plate_text = text_result[0] if text_result else ""
-        valid = bool(len(plate_text) >= 6)
-        plates.append({
-            'plate': plate_text,
-            'confidence': round(conf * 100, 1),
-            'valid': valid,
-            'box': [x1, y1, x2, y2]
-        })
-    return plates
+# Utility Function
 
-@app.route('/api/detect', methods=['POST'])
-def detect():
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def detect_license_plate(image_path):
+    image = cv2.imread(image_path)
+    results = model(image)[0]
+
+    for box in results.boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0])
+        cropped = image[y1:y2, x1:x2]
+        temp_path = os.path.join(UPLOAD_FOLDER, 'temp.jpg')
+        cv2.imwrite(temp_path, cropped)
+
+        text = pytesseract.image_to_string(Image.open(temp_path))
+        plate_text = re.sub(r'[^A-Z0-9]', '', text.upper())
+
+        if validate_plate(plate_text):
+            return plate_text, True
+        else:
+            return plate_text, False
+
+    return "No plate detected", False
+
+def validate_plate(plate_text):
+    # Example: MH12AB1234, DL8CAF5030
+    pattern = r'^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$'
+    return bool(re.match(pattern, plate_text))
+
+# Routes
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload():
     if 'file' not in request.files:
-        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+        return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
-    img = Image.open(file.stream).convert('RGB')
-    img_bytes = io.BytesIO()
-    img.save(img_bytes, format='JPEG')
-    img_bytes = img_bytes.getvalue()
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-    try:
-        plates = detect_license_plate(img_bytes)
-        return jsonify({'success': True, 'plates': plates})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/chatbot', methods=['POST'])
-def chatbot():
-    data = request.get_json()
-    msg = data.get('message', '').lower()
-
-    if 'validate' in msg:
-        return jsonify({'reply': 'Indian plates follow pattern: STATE‑RTO‑XXXX format.'})
-    elif 'help' in msg:
-        return jsonify({'reply': 'Send images or camera frames to detect license plates.'})
+        plate, valid = detect_license_plate(filepath)
+        return jsonify({
+            'plate': plate,
+            'valid': valid
+        })
     else:
-        return jsonify({'reply': "I'm here to help—ask me about license plate detection!"})
-
-@app.route('/', defaults={'path': 'index.html'})
-@app.route('/<path:path>')
-def serve(path):
-    return send_from_directory('.', path)
+        return jsonify({'error': 'File type not allowed'}), 400
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
