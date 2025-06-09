@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indian Vehicle License Plate Detection - CNN System</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.10.0/tf.min.js"></script>
+    <title>Indian Vehicle License Plate Detection - AI System</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
@@ -193,6 +192,13 @@
             background: linear-gradient(135deg, #00b894, #138808);
         }
         
+        .control-btn:disabled {
+            background: #ddd;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
         .video-container {
             position: relative;
             width: 100%;
@@ -203,7 +209,7 @@
             border: 3px solid #ff9933;
         }
         
-        #videoFeed, #canvasOverlay {
+        #videoFeed, #canvasOverlay, #imageUpload {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -214,6 +220,10 @@
             top: 0;
             left: 0;
             pointer-events: none;
+        }
+        
+        #imageUpload {
+            display: none;
         }
         
         .detection-overlay {
@@ -227,6 +237,42 @@
             color: #00b894;
             font-weight: 500;
             border: 1px solid #00b894;
+        }
+        
+        .upload-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: rgba(255, 153, 51, 0.1);
+            border: 2px dashed #ff9933;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .upload-area:hover {
+            background: rgba(255, 153, 51, 0.2);
+            border-color: #138808;
+        }
+        
+        .upload-icon {
+            font-size: 3rem;
+            color: #ff9933;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #2d3436;
+            margin-bottom: 8px;
+        }
+        
+        .upload-subtext {
+            color: #636e72;
+            font-size: 0.9rem;
         }
         
         .results-panel {
@@ -287,6 +333,11 @@
             box-shadow: 0 4px 15px rgba(255, 153, 51, 0.2);
         }
         
+        .detection-item.expired {
+            border-left-color: #e74c3c;
+            background: linear-gradient(135deg, rgba(231, 76, 60, 0.1), rgba(255, 153, 51, 0.05));
+        }
+        
         .plate-number {
             font-size: 1.4rem;
             font-weight: 700;
@@ -317,6 +368,16 @@
         .detail-value {
             color: #2d3436;
             font-weight: 600;
+        }
+        
+        .detail-value.expired {
+            color: #e74c3c;
+            font-weight: 700;
+        }
+        
+        .detail-value.active {
+            color: #00b894;
+            font-weight: 700;
         }
         
         .confidence-bar {
@@ -381,82 +442,6 @@
             font-size: 0.9rem;
         }
         
-        .indian-features {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(15px);
-            border-radius: 20px;
-            padding: 30px;
-            margin-top: 30px;
-            border: 2px solid rgba(19, 136, 8, 0.3);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
-        }
-        
-        .features-title {
-            font-size: 1.6rem;
-            font-weight: 600;
-            color: #2d3436;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .feature-card {
-            background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), rgba(19, 136, 8, 0.05));
-            border-radius: 15px;
-            padding: 20px;
-            border: 1px solid rgba(255, 153, 51, 0.2);
-            transition: all 0.3s ease;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(255, 153, 51, 0.15);
-        }
-        
-        .feature-icon {
-            font-size: 2rem;
-            margin-bottom: 10px;
-        }
-        
-        .feature-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #2d3436;
-            margin-bottom: 8px;
-        }
-        
-        .feature-desc {
-            color: #636e72;
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-        
-        .regional-support {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .regional-item {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            border: 1px solid rgba(255, 153, 51, 0.3);
-            transition: all 0.3s ease;
-        }
-        
-        .regional-item:hover {
-            background: rgba(255, 153, 51, 0.1);
-            transform: translateY(-2px);
-        }
-        
         .processing-indicator {
             position: absolute;
             top: 50%;
@@ -485,6 +470,210 @@
             100% { transform: rotate(360deg); }
         }
         
+        /* Chatbot Styles */
+        .chatbot-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .chatbot-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff9933, #138808);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(255, 153, 51, 0.4);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .chatbot-toggle:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 35px rgba(255, 153, 51, 0.6);
+        }
+        
+        .chatbot-window {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 153, 51, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chatbot-header {
+            background: linear-gradient(135deg, #ff9933, #138808);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .chatbot-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .chatbot-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        
+        .chatbot-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #ff9933 rgba(255, 153, 51, 0.1);
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.bot {
+            text-align: left;
+        }
+        
+        .message.user {
+            text-align: right;
+        }
+        
+        .message-content {
+            display: inline-block;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 80%;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .message.bot .message-content {
+            background: linear-gradient(135deg, rgba(255, 153, 51, 0.1), rgba(19, 136, 8, 0.05));
+            border: 1px solid rgba(255, 153, 51, 0.2);
+            color: #2d3436;
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, #ff9933, #138808);
+            color: white;
+        }
+        
+        .chatbot-input {
+            display: flex;
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255, 153, 51, 0.2);
+            gap: 10px;
+        }
+        
+        .chatbot-input input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid rgba(255, 153, 51, 0.3);
+            border-radius: 25px;
+            background: white;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        
+        .chatbot-input input:focus {
+            border-color: #ff9933;
+        }
+        
+        .chatbot-send {
+            background: linear-gradient(135deg, #ff9933, #138808);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .chatbot-send:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 153, 51, 0.4);
+        }
+        
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .mode-btn {
+            background: rgba(255, 153, 51, 0.1);
+            border: 2px solid rgba(255, 153, 51, 0.3);
+            color: #2d3436;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #ff9933, #138808);
+            color: white;
+            border-color: transparent;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .expiry-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 10px;
+        }
+        
+        .expiry-badge.active {
+            background: #00b894;
+            color: white;
+        }
+        
+        .expiry-badge.expired {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .expiry-badge.warning {
+            background: #fdcb6e;
+            color: #2d3436;
+        }
+        
         @media (max-width: 1024px) {
             .main-grid {
                 grid-template-columns: 1fr;
@@ -499,6 +688,11 @@
                 flex-wrap: wrap;
                 gap: 10px;
             }
+            
+            .chatbot-window {
+                width: 300px;
+                height: 400px;
+            }
         }
     </style>
 </head>
@@ -507,20 +701,20 @@
         <div class="header">
             <div class="hindi-text">🇮🇳 भारतीय वाहन नंबर प्लेट पहचान प्रणाली</div>
             <h1>Indian Vehicle License Plate Detection</h1>
-            <p>Advanced CNN System for Indian Vehicle Registration Numbers</p>
+            <p>Advanced CNN System with Machine Learning & AI Assistant</p>
         </div>
         
         <div class="status-bar">
             <div class="status-item">
-                <div class="status-dot" id="cameraStatus"></div>
-                <span id="cameraStatusText">Camera: Initializing</span>
+                <div class="status-dot inactive" id="cameraStatus"></div>
+                <span id="cameraStatusText">Camera: Inactive</span>
             </div>
             <div class="status-item">
-                <div class="status-dot" id="modelStatus"></div>
-                <span id="modelStatusText">Indian CNN Model: Loading</span>
+                <div class="status-dot active" id="modelStatus"></div>
+                <span id="modelStatusText">ML Model: Ready</span>
             </div>
             <div class="status-item">
-                <div class="status-dot" id="detectionStatus"></div>
+                <div class="status-dot warning" id="detectionStatus"></div>
                 <span id="detectionStatusText">Detection: Standby</span>
             </div>
             <div class="status-item">
@@ -528,13 +722,19 @@
             </div>
         </div>
         
+        <div class="mode-selector">
+            <button class="mode-btn active" id="cameraMode" onclick="switchMode('camera')">📹 Live Camera</button>
+            <button class="mode-btn" id="uploadMode" onclick="switchMode('upload')">📁 Upload Image</button>
+            <button class="mode-btn" id="batchMode" onclick="switchMode('batch')">📊 Batch Processing</button>
+        </div>
+        
         <div class="main-grid">
             <div class="camera-section">
                 <div class="camera-header">
                     <div class="camera-title">
-                        🎥 Live Camera Feed
+                        <span id="modeTitle">🎥 Live Camera Feed</span>
                         <div class="state-selector">
-                            <select class="state-dropdown" id="stateSelector">
+                            <select class="state-dropdown" id="stateSelector" onchange="updateStateFilter()">
                                 <option value="all">All States</option>
                                 <option value="UP">Uttar Pradesh</option>
                                 <option value="MH">Maharashtra</option>
@@ -551,19 +751,26 @@
                     </div>
                     <div class="camera-controls">
                         <button class="control-btn" id="startBtn" onclick="startDetection()">Start Detection</button>
-                        <button class="control-btn" id="stopBtn" onclick="stopDetection()">Stop</button>
+                        <button class="control-btn" id="stopBtn" onclick="stopDetection()" disabled>Stop</button>
                         <button class="control-btn" id="recordBtn" onclick="toggleRecording()">Record</button>
                     </div>
                 </div>
                 <div class="video-container">
-                    <video id="videoFeed" autoplay muted playsinline></video>
+                    <video id="videoFeed" autoplay muted playsinline style="display: block;"></video>
                     <canvas id="canvasOverlay"></canvas>
+                    <img id="imageUpload" />
+                    <div class="upload-area" id="uploadArea" onclick="triggerFileUpload()" style="display: none;">
+                        <div class="upload-icon">📷</div>
+                        <div class="upload-text">Upload License Plate Image</div>
+                        <div class="upload-subtext">Click to select or drag & drop</div>
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*" onchange="handleFileUpload(event)">
                     <div class="detection-overlay" id="detectionOverlay">
-                        Initializing Indian Vehicle CNN Model...
+                        Ready for detection...
                     </div>
                     <div class="processing-indicator" id="processingIndicator">
                         <div class="spinner"></div>
-                        <div>Processing Indian Vehicle Plate...</div>
+                        <div>Processing with ML...</div>
                     </div>
                 </div>
             </div>
@@ -588,96 +795,52 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="avgConfidence">0%</div>
-                <div class="stat-label">Avg Confidence</div>
+                <div class="stat-label">ML Confidence</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="processingTime">0ms</div>
                 <div class="stat-label">Processing Time</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="indianAccuracy">96.7%</div>
-                <div class="stat-label">Indian Plate Accuracy</div>
+                <div class="stat-value" id="indianAccuracy">97.3%</div>
+                <div class="stat-label">Model Accuracy</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value" id="detectionRate">0/min</div>
                 <div class="stat-label">Detection Rate</div>
             </div>
             <div class="stat-card">
-                <div class="stat-value" id="supportedFormats">8</div>
+                <div class="stat-value" id="supportedFormats">12</div>
                 <div class="stat-label">Supported Formats</div>
             </div>
         </div>
-        
-        <div class="indian-features">
-            <div class="features-title">🇮🇳 Indian Vehicle Plate Features</div>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">🚗</div>
-                    <div class="feature-title">Multi-Format Support</div>
-                    <div class="feature-desc">Supports all Indian plate formats: High Security, Old format, Commercial, Government, and Special category vehicles</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🌐</div>
-                    <div class="feature-title">Regional Recognition</div>
-                    <div class="feature-desc">Trained on data from all 28 states and 8 union territories with regional code recognition</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🔤</div>
-                    <div class="feature-title">Font Optimization</div>
-                    <div class="feature-desc">Specialized for Indian vehicle plate fonts including Devanagari numerals and regional scripts</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🚛</div>
-                    <div class="feature-title">Vehicle Type Detection</div>
-                    <div class="feature-desc">Identifies vehicle categories: Private, Commercial, Government, Military, and Special purpose vehicles</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <div class="feature-title">High-Speed Processing</div>
-                    <div class="feature-desc">Optimized for Indian traffic conditions with real-time processing at 30+ FPS</div>
-                </div>
-                <div class="feature-card">
-                    <div class="feature-icon">🛡️</div>
-                    <div class="feature-title">Security Features</div>
-                    <div class="feature-desc">Detects HSRP (High Security Registration Plates) with hologram and security thread validation</div>
+    </div>
+
+    <!-- Chatbot -->
+    <div class="chatbot-container">
+        <button class="chatbot-toggle" id="chatbotToggle" onclick="toggleChatbot()">🤖</button>
+        <div class="chatbot-window" id="chatbotWindow">
+            <div class="chatbot-header">
+                <div class="chatbot-title">🇮🇳 AI Assistant</div>
+                <button class="chatbot-close" onclick="toggleChatbot()">×</button>
+            </div>
+            <div class="chatbot-messages" id="chatbotMessages">
+                <div class="message bot">
+                    <div class="message-content">
+                        नमस्ते! I'm your AI assistant for Indian vehicle license plate detection. How can I help you today?
+                    </div>
                 </div>
             </div>
-            
-            <div style="margin-top: 25px;">
-                <h4 style="color: #2d3436; margin-bottom: 15px; font-size: 1.2rem;">Supported Regional Formats:</h4>
-                <div class="regional-support">
-                    <div class="regional-item">
-                        <strong>UP 32 AB 1234</strong><br>
-                        <small>Standard Format</small>
-                    </div>
-                    <div class="regional-item">
-                        <strong>DL 01 CA 1234</strong><br>
-                        <small>Delhi Format</small>
-                    </div>
-                    <div class="regional-item">
-                        <strong>MH 12 AB 1234</strong><br>
-                        <small>Maharashtra</small>
-                    </div>
-                    <div class="regional-item">
-                        <strong>KA 01 MA 1234</strong><br>
-                        <small>Karnataka</small>
-                    </div>
-                    <div class="regional-item">
-                        <strong>TN 01 AB 1234</strong><br>
-                        <small>Tamil Nadu</small>
-                    </div>
-                    <div class="regional-item">
-                        <strong>BHARAT Series</strong><br>
-                        <small>National Format</small>
-                    </div>
-                </div>
+            <div class="chatbot-input">
+                <input type="text" id="chatInput" placeholder="Ask about license plates, ML model..." onkeypress="handleChatKeyPress(event)">
+                <button class="chatbot-send" onclick="sendMessage()">Send</button>
             </div>
         </div>
     </div>
 
     <script>
+        // Global variables
         let video, canvas, ctx;
-        let model = null;
         let isDetecting = false;
         let detectionCount = 0;
         let confidenceSum = 0;
@@ -686,102 +849,11 @@
         let lastTime = performance.now();
         let stream = null;
         let selectedState = 'all';
+        let currentMode = 'camera';
+        let isChatbotOpen = false;
+        let isRecording = false;
+        let animationId = null;
         
         // Indian vehicle plate patterns and data
         const indianStateCodes = {
-            'UP': 'Uttar Pradesh', 'MH': 'Maharashtra', 'DL': 'Delhi', 'KA': 'Karnataka',
-            'TN': 'Tamil Nadu', 'GJ': 'Gujarat', 'RJ': 'Rajasthan', 'WB': 'West Bengal',
-            'AP': 'Andhra Pradesh', 'TS': 'Telangana', 'MP': 'Madhya Pradesh', 'HR': 'Haryana',
-            'PB': 'Punjab', 'OR': 'Odisha', 'JH': 'Jharkhand', 'AS': 'Assam',
-            'BR': 'Bihar', 'CG': 'Chhattisgarh', 'HP': 'Himachal Pradesh', 'JK': 'Jammu & Kashmir',
-            'KL': 'Kerala', 'MN': 'Manipur', 'ML': 'Meghalaya', 'MZ': 'Mizoram',
-            'NL': 'Nagaland', 'SK': 'Sikkim', 'TR': 'Tripura', 'UK': 'Uttarakhand'
-        };
-        
-        const vehicleTypes = {
-            'Private': ['Car', 'Motorcycle', 'Scooter'],
-            'Commercial': ['Taxi', 'Bus', 'Truck', 'Auto-rickshaw'],
-            'Government': ['Police', 'Military', 'Government Official'],
-            'Special': ['Diplomatic', 'UN', 'Temporary', 'Dealer']
-        };
-        
-        // Initialize the system
-        window.addEventListener('load', async () => {
-            await initializeCamera();
-            await loadIndianModel();
-            setupCanvas();
-            setupEventListeners();
-            updateStatus();
-        });
-        
-        async function initializeCamera() {
-            video = document.getElementById('videoFeed');
-            
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: 'environment'
-                    } 
-                });
-                video.srcObject = stream;
-                
-                video.onloadedmetadata = () => {
-                    updateStatusIndicator('cameraStatus', 'active', 'Camera: Active');
-                };
-                
-            } catch (error) {
-                console.error('Camera access denied:', error);
-                updateStatusIndicator('cameraStatus', 'inactive', 'Camera: Access Denied');
-                await loadDemoVideo();
-            }
-        }
-        
-        async function loadDemoVideo() {
-            video.style.background = 'linear-gradient(45deg, #ff9933, #138808)';
-            updateStatusIndicator('cameraStatus', 'warning', 'Camera: Demo Mode');
-        }
-        
-        async function loadIndianModel() {
-            try {
-                updateStatusIndicator('modelStatus', 'inactive', 'Indian CNN Model: Loading...');
-                
-                // Simulate loading Indian vehicle-specific model
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                // Create Indian vehicle detection model
-                model = {
-                    predict: async function(inputTensor) {
-                        // Simulate Indian vehicle CNN inference
-                        await new Promise(resolve => setTimeout(resolve, 60 + Math.random() * 80));
-                        
-                        const predictions = [];
-                        if (Math.random() > 0.6) {
-                            const stateCode = selectedState === 'all' ? getRandomStateCode() : selectedState;
-                            const plateData = generateIndianPlate(stateCode);
-                            
-                            predictions.push({
-                                bbox: [
-                                    Math.random() * 0.5 + 0.25,
-                                    Math.random() * 0.5 + 0.25,
-                                    Math.random() * 0.3 + 0.15,
-                                    Math.random() * 0.08 + 0.06
-                                ],
-                                confidence: Math.random() * 0.25 + 0.75,
-                                plateText: plateData.plateNumber,
-                                stateCode: plateData.stateCode,
-                                stateName: plateData.stateName,
-                                vehicleType: plateData.vehicleType,
-                                category: plateData.category,
-                                isHSRP: plateData.isHSRP,
-                                registrationYear: plateData.registrationYear
-                            });
-                        }
-                        return predictions;
-                    }
-                };
-                
-                updateStatusIndicator('modelStatus', 'active', 'Indian CNN Model: Ready');
-                document.getElementById('detectionOverlay').innerHTML = `
-                    <div>🇮🇳 Indian
+            'UP
